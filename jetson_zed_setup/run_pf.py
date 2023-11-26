@@ -7,6 +7,7 @@ import tf2_ros
 import tf2_geometry_msgs
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 import psutil
+import os
 
 
 class TFListener(Node):
@@ -66,17 +67,13 @@ def main():
         initial_command = "ros2 launch apriltag_ros tag_zed.launch.py"
         alternative_command = "ros2 run particle_filter_mesh particle_filter_node"
         source_frame = "zed_kitchen_left_camera_frame"
-        target_frame = "tag_15_zed"
+        target_frame = "tag_" + os.environ.get("target_id") + "_zed"
 
         # Run the initial command
         node.run_initial_command(initial_command)
-        print("wait after tranform ****************************")
         # Wait for the TF transform between source_frame and target_frame
         tf_transform = node.wait_for_tf_transform(source_frame, target_frame)
-        print("before tranform ****************************")
         if tf_transform is not None:
-            # print("\n",  tf_transform, "\n\n*************tf_transform")
-            print("tranform ****************************")
             node.get_logger().info(f"TF transform between {source_frame} and {target_frame} found.")
             node.make_transform(source_frame, target_frame, tf_transform.transform)
             # Stop the initial command
