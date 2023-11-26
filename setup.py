@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'script = jetson_zed_setup.script:main',
+            'run_pf = jetson_zed_setup.run_pf:main',
+            'run_without_pf = jetson_zed_setup.run_without_pf:main',
         ],
     },
 )
