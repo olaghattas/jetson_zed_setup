@@ -6,6 +6,7 @@ from geometry_msgs.msg import TransformStamped
 import tf2_ros
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 import os
+import sys
 
 
 class TFListener(Node):
@@ -62,9 +63,9 @@ def main():
     node = TFListener()
 
     try:
-        initial_command = "ros2 launch apriltag_ros tag_zed.launch.py"
-        source_frame = "zed_kitchen_left_camera_frame"
-        target_frame = "tag_" + os.environ.get("target_id") + "_zed"
+        initial_command = sys.argv[1] # "ros2 launch apriltag_ros tag_zed.launch.py"
+        source_frame = sys.argv[2] # "zed_kitchen_left_camera_frame"
+        target_frame = sys.argv[3] # "tag_" + os.environ.get("target_id") + "_zed"
 
         # Run the initial command
         node.run_initial_command(initial_command)
