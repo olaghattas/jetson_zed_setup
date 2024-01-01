@@ -7,6 +7,7 @@ import tf2_ros
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 import os
 import sys
+import re
 
 
 class TFListener(Node):
@@ -16,6 +17,8 @@ class TFListener(Node):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=True)
         self.tf_static_broadcaster = StaticTransformBroadcaster(self)
         self.initial_command_process = None
+        self.flag = False
+        self.transform = None
 
     def run_initial_command(self, command):
         self.initial_command_process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
@@ -40,7 +43,6 @@ class TFListener(Node):
             subprocess.run(command, shell=True)
             self.get_logger().info(f"Running alternative command: {command}")
 
-
     def run_alternative_command(self, command):
         subprocess.run(command, shell=True)
         self.get_logger().info(f"Running alternative command: {command}")
@@ -54,35 +56,82 @@ class TFListener(Node):
 
         t.transform.translation = transform.translation
         t.transform.rotation = transform.rotation
-
+        self.transform = t
+        self.flag = True
         self.tf_static_broadcaster.sendTransform(t)
+
+    def file_exists(self, file_path):
+        return os.path.exists(file_path)
 
 
 def main():
     rclpy.init()
     node = TFListener()
+    while True:
+        try:
+            if node.flag:
+                print("*** In if node.flag ***")
+                node.tf_static_broadcaster.sendTransform(node.transform)
 
-    try:
-        initial_command = sys.argv[1] # "ros2 launch apriltag_ros tag_zed.launch.py"
-        source_frame = sys.argv[2] # "zed_kitchen_left_camera_frame"
-        target_frame = sys.argv[3] # "tag_" + os.environ.get("target_id") + "_zed"
+            initial_command = sys.argv[1]  # "ros2 launch apriltag_ros tag_zed.launch.py camera_name:=/zed_doorway/zed_node_doorway/left image_topic:=image_rect_color apriltag_detections:=/apriltag_detections_zed_doorway"
+            source_frame = sys.argv[2]  # "zed_kitchen_left_camera_frame"
+            target_frame = sys.argv[3]  # "tag_" + os.environ.get("target_id") + "_zed"
+            file_path = sys.argv[4]  # 'your_file.txt'
+            # "zed_kitchen_left_camera_frame"  "tag_7_zed" "your_file.txt"
 
-        # Run the initial command
-        node.run_initial_command(initial_command)
-        # Wait for the TF transform between source_frame and target_frame
-        tf_transform = node.wait_for_tf_transform(source_frame, target_frame)
-        if tf_transform is not None:
-            node.get_logger().info(f"TF transform between {source_frame} and {target_frame} found.")
-            node.make_transform(source_frame, target_frame, tf_transform.transform)
-            # Stop the initial command
-            node.stop_initial_command()
+            print("Source frame: ", source_frame)
+            print("Target Frame: ", target_frame)
+            print("File path: ", file_path)
+            # Wait for the TF transform between source_frame and target_frame
+            if node.file_exists(file_path):
+                print("&&&& file read %$$$$")
+                with open(file_path, 'r') as file:
+                    x, y, z, qx, qy, qz, qw = map(float, file.readline().split())
 
-        else:
-            node.get_logger().info(f"Timeout waiting for TF transform between {source_frame} and {target_frame}.")
+                t = TransformStamped()
 
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+                t.header.stamp = node.get_clock().now().to_msg()
+                t.header.frame_id = source_frame
+                t.child_frame_id = target_frame
+
+                t.transform.translation.x = x
+                t.transform.translation.y = y
+                t.transform.translation.z = z
+                t.transform.rotation.x = qx
+                t.transform.rotation.y = qy
+                t.transform.rotation.z = qz
+                t.transform.rotation.w = qw
+
+                node.tf_static_broadcaster.sendTransform(t)
+                node.transform = t
+                node.flag = True
+                print("Node: ", node)
+
+            # Save the tf_transform, source_frame, and target_frame in a file
+            else:
+                # Run the initial command
+                node.run_initial_command(initial_command)
+                print("&&&& file doesnt exists %$$$$")
+                tf_transform = node.wait_for_tf_transform(source_frame, target_frame)
+                if tf_transform is not None:
+                    node.get_logger().info(f"TF transform between {source_frame} and {target_frame} found.")
+                    print("&&&& file saved %$$$$")
+                    print("tf_transform dfdfgd ",tf_transform)
+                    with open(file_path, 'w') as file:
+                        file.write(
+                            f"{tf_transform.transform.translation.x} {tf_transform.transform.translation.y} {tf_transform.transform.translation.z} "
+                            f"{tf_transform.transform.rotation.x} {tf_transform.transform.rotation.y} {tf_transform.transform.rotation.z} {tf_transform.transform.rotation.w}")
+                    print("&&&& file saved %$$$$")
+                    node.make_transform(source_frame, target_frame, tf_transform.transform)
+                    # Stop the initial command
+                    node.stop_initial_command()
+                else:
+                    node.get_logger().info(f"Timeout waiting for TF transform between {source_frame} and {target_frame}.")
+        except Exception as e:
+            print("ERror in try", e)
+        time.sleep(10)
+    node.destroy_node()
+    rclpy.shutdown()
 
 
 if __name__ == '__main__':
